@@ -1,0 +1,18 @@
+2020-11-05 15:38:44 INFO  NetworkConfig:372 - loading properties from file C:\Users\s.brescia\Desktop\Personale\Universita\Ingegneria_sistemi_software\NewButler\Sprint12 - Deployment\distibutions\maitre\bin\Californium.properties
+2020-11-05 15:38:45 INFO  RandomTokenGenerator:55 - using tokens of 8 bytes in length
+2020-11-05 15:38:45 INFO  CoapEndpoint:423 - CoapEndpoint uses udp plain
+2020-11-05 15:38:45 INFO  BlockwiseLayer:207 - BlockwiseLayer uses MAX_MESSAGE_SIZE=1024, PREFERRED_BLOCK_SIZE=512, BLOCKWISE_STATUS_LIFETIME=300000 and MAX_RESOURCE_BODY_SIZE=8192
+2020-11-05 15:38:45 INFO  ReliabilityLayer:83 - ReliabilityLayer uses ACK_TIMEOUT=2000, ACK_RANDOM_FACTOR=1.5, and ACK_TIMEOUT_SCALE=2.0
+2020-11-05 15:38:45 INFO  CoapServer:207 - Starting server
+2020-11-05 15:38:45 INFO  UDPConnector:161 - UDPConnector starts up 8 sender threads and 8 receiver threads
+2020-11-05 15:38:45 INFO  UDPConnector:187 - UDPConnector listening on 0.0.0.0/0.0.0.0:8039, recv buf = 65536, send buf = 65536, recv packet size = 2048
+2020-11-05 15:38:45 INFO  CoapEndpoint:485 - Started endpoint at coap://0.0.0.0:8039
+2020-11-05 15:46:57 INFO  NetworkConfig:372 - loading properties from file C:\Users\s.brescia\Desktop\Personale\Universita\Ingegneria_sistemi_software\NewButler\Sprint12 - Deployment\distibutions\maitre\bin\Californium.properties
+2020-11-05 15:46:59 INFO  RandomTokenGenerator:55 - using tokens of 8 bytes in length
+2020-11-05 15:46:59 INFO  CoapEndpoint:423 - CoapEndpoint uses udp plain
+2020-11-05 15:46:59 INFO  BlockwiseLayer:207 - BlockwiseLayer uses MAX_MESSAGE_SIZE=1024, PREFERRED_BLOCK_SIZE=512, BLOCKWISE_STATUS_LIFETIME=300000 and MAX_RESOURCE_BODY_SIZE=8192
+2020-11-05 15:46:59 INFO  ReliabilityLayer:83 - ReliabilityLayer uses ACK_TIMEOUT=2000, ACK_RANDOM_FACTOR=1.5, and ACK_TIMEOUT_SCALE=2.0
+2020-11-05 15:46:59 INFO  CoapServer:207 - Starting server
+2020-11-05 15:46:59 INFO  UDPConnector:161 - UDPConnector starts up 8 sender threads and 8 receiver threads
+2020-11-05 15:46:59 INFO  UDPConnector:187 - UDPConnector listening on 0.0.0.0/0.0.0.0:8039, recv buf = 65536, send buf = 65536, recv packet size = 2048
+2020-11-05 15:46:59 INFO  CoapEndpoint:485 - Started endpoint at coap://0.0.0.0:8039

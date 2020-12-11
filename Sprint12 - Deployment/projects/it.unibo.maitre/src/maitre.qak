@@ -1,0 +1,229 @@
+System maitre
+
+Dispatch prepare : prepare(Cmd)
+Dispatch clear : clear(Cmd)
+Dispatch add : add(Foodcode, Quantity)
+
+Dispatch stop : stop(Cmd)
+Dispatch reactivate : reactivate(Cmd)
+
+Dispatch expose : expose(Cmd)
+
+Event endSession : endSession(Cmd)
+
+//user events
+Event prepare_button : prepare_button(Cmd)
+Event clear_button : clear_button(Cmd)
+Event add_button : add_button(Foodcode, Quantity)
+Event stop_button : stop_button(Cmd)
+Event reactivate_button : reactivate_button(Cmd)
+Event exposeroomstate_button : exposeroomstate_button(Cmd)
+
+//update events
+Event fridgestate : fridgestate(X)
+Event roomstate : roomstate(X)
+Event robotposition : robotposition(X)
+Event robotaction : robotaction(X)
+Event robotdest : robotdest(Dest, X, Y)
+
+//to alert maitre
+Event food_notavailable : food_notavailable(Foodcode, Quantity)
+
+Request exposefridgestate : exposefridgestate(Destination)
+Reply fridgestateReplay: fridgestateReplay(List)
+
+Context ctxmaitre ip [host="localhost" port=8039]
+Context ctxrobot ip [host="127.0.0.1" port=8040]
+Context ctxfridge ip [host="::1" port=8038]
+
+ExternalQActor robot context ctxrobot
+ExternalQActor fridge context ctxfridge
+
+//MAITRE
+QActor maitre context ctxmaitre {
+	State s0 initial{
+		println("Maitre | Ready")
+	}
+	Goto waitCmdPrepare
+	
+	State waitCmdPrepare{}
+	Transition t0
+		whenEvent exposeroomstate_button -> exposeroomstate
+		whenEvent prepare_button -> prepare
+
+	State waitCmd{}
+	Transition t1
+		whenEvent add_button -> add
+		whenEvent clear_button -> clear
+		whenEvent stop_button -> stoprobot
+		whenEvent endSession -> waitCmdPrepare
+
+		
+	State exposeroomstate{
+		forward robot -m expose : expose(Cmd)
+		request fridge -m exposefridgestate : exposefridgestate(fridge)
+		}
+		Transition t1
+			whenReply fridgestateReplay -> updateFrontend
+			
+	State updateFrontend {
+			onMsg(fridgestateReplay:fridgestateReplay(List)){
+			println("Maitre | FRIDGE STATE RECIVED")
+			[# var Food: String = payloadArg(0);
+			   var Foodstring = Food.replace(",(","(") #] //to remove the extra comma from prolog toString
+			solve(text_term($Foodstring,Foods))
+			emit fridgestate : fridgestate($getCurSol("Foods"))
+			}
+	}	
+	Goto waitCmdPrepare
+						
+			
+	State prepare {
+		onMsg(prepare_button: prepare_button(X)){
+			println("Maitre | PREPARE")
+			updateResource [# "prepare" #]
+			forward robot -m prepare : prepare(Cmd)
+		}
+	}	
+	Goto waitCmd
+		
+	State add {
+		onMsg(add_button: add_button(Foodcode, Quantity)){
+			println("Maitre | ADD")
+			updateResource [# "add" #]
+			forward robot -m add : add($payloadArg(0), $payloadArg(1))
+		}
+	}	
+	Goto waitCmd
+		
+	State clear {
+		onMsg(clear_button: clear_button(X)){
+			println("Maitre | CLEAR")
+			updateResource [# "clear" #]
+			forward robot -m clear : clear(Cmd)
+		}
+	}
+	Goto waitCmd
+	
+	State stoprobot{
+		onMsg(stop_button: stop_button(X)){
+		println("Maitre |  STOP")
+		updateResource [# "stoprobot" #]
+		forward robot -m stop : stop(Action)
+		}
+	}
+	Transition t1
+	whenEvent reactivate_button -> reactivaterobot
+	
+	State reactivaterobot{
+		onMsg(reactivate_button: reactivate_button(X)){
+		println("Maitre |  REACTIVATE")
+		updateResource [# "reactivaterobot" #]
+		forward robot -m reactivate : reactivate(Action)
+		
+		}
+	}
+	Goto waitCmd
+
+}
+
+QActor console context ctxmaitre{
+	State s0 initial{
+		//request roomstate -m exposeroomstate : exposeroomstate(X)
+	}
+	Goto waitUpdate
+	
+	State waitUpdate{
+		
+	}Transition t0
+		//whenMsg fridgestateTest -> updatefridge
+		whenEvent fridgestate -> updatefridge
+		whenEvent roomstate -> updateroom
+		whenEvent robotposition -> updaterobotpos
+		whenEvent robotaction -> updaterobotaction
+		whenEvent robotdest -> updaterobotdest
+		whenEvent food_notavailable -> handlerobotmsg
+		
+	State updatefridge{
+		onMsg(fridgestate : fridgestate(List)){
+			[#		println("SONO QUI!")
+					val L = payloadArg(0)
+					println(L)
+					val my = myself							
+					val t = itunibo.utils.prepareToSend(L)	
+					val OnFridge = t["fridge"].toString()				
+			#]
+			run utils.utilsFrontend.updateFrontend(my, OnFridge)
+		}
+	/*	onMsg(fridgestateTest : fridgestateTest(List)){
+			[#		println("SONO QUI!")
+					val L = payloadArg(0)
+					println(L)
+					val my = myself							
+					val t = itunibo.utils.prepareToSend(L)	
+					val OnFridge = t["fridge"].toString()				
+			#]
+			run utils.utilsFrontend.updateFrontend(my, OnFridge)
+		}*/
+	}Goto waitUpdate
+	
+	State updateroom{
+		onMsg(roomstate : roomstate(St)){
+			[#				
+				val L = payloadArg(0)
+				println(L)
+				val my = myself							
+				val t = itunibo.utils.prepareToSend(L)	
+				val OnRobot = t["robot"].toString()
+				val OnPantry = t["pantry"].toString()
+				val OnDish = t["dishwasher"].toString()
+				val OnTable = t["table"].toString()
+			#]
+			run utils.utilsFrontend.updateFrontend(my, OnRobot)
+			run utils.utilsFrontend.updateFrontend(my, OnPantry)
+			run utils.utilsFrontend.updateFrontend(my, OnDish)
+			run utils.utilsFrontend.updateFrontend(my, OnTable)
+		}
+	}Goto waitUpdate
+	
+	State updaterobotpos{
+		onMsg(robotposition : robotposition(X)){
+			println("ROBOT POS:")
+			println(payloadArg(0))
+			[# val my = myself	#]
+			run utils.utilsFrontend.updatePositionFrontend(my,payloadArg(0))
+		}
+	}Goto waitUpdate
+	
+	State updaterobotaction{
+		onMsg(robotaction : robotaction(X)){
+			println("ROBOT ACTION:")
+			println(payloadArg(0))
+			[# val my = myself	#]
+			run utils.utilsFrontend.updateTaskFrontend(my, payloadArg(0))
+		}
+	}Goto waitUpdate
+	
+	State updaterobotdest{
+		onMsg(robotdest : robotdest(Dest, X, Y)){
+			println("ROBOT GOAL:")
+			println(payloadArg(0))
+			[# 
+				val my = myself	
+				val FormattedDest = ":" + payloadArg(0) + " (" + payloadArg(1) + "," + payloadArg(2) +"))"
+				println(FormattedDest)
+				
+			#]
+			run utils.utilsFrontend.updateGoalToFrontend(my,FormattedDest)
+		}
+	}Goto waitUpdate
+	
+	State handlerobotmsg{
+		onMsg (food_notavailable : food_notavailable(Foodcode, Quantity)){
+			println("Maitre | knows ${payloadArg(0)} ${payloadArg(1)} isn't available")
+			[# val my = myself	#]
+			run utils.utilsFrontend.updateFrontend(my, "warning")
+		}
+	}
+	Goto waitUpdate
+}

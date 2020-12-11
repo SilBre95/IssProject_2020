@@ -1,0 +1,183 @@
+System butler
+//ANALYSIS MODEL
+
+Dispatch prepare : prepare(Cmd)
+Dispatch clear : clear(Cmd)
+Dispatch add : add(Foodcode)
+
+Dispatch stop : stop(Cmd)
+Dispatch reactivate : reactivate(Cmd)
+
+Dispatch fridgestate : fridgestate(Cmd)
+Dispatch check_food : check_food(Foodcode)
+
+Dispatch roomstate : roomstate(Cmd)
+
+//Event prepare_button : prepare_button(Cmd)
+//Event clear_button : clear_button(Cmd)
+//Event add_button : add_button(Foodcode)
+//Event stop_button : stop_button(Cmd)
+//Event reactivate_button : reactivate_button(Cmd)
+//Event roomstate : roomstate(Cmd)
+
+Context ctxroom ip [host="localhost" port=8038]
+
+//ROBOT
+QActor robot context ctxroom{
+	State s0 initial{
+		println("Butler | Ready")
+	}
+	Goto waitCmd
+		
+	State waitCmd{}
+	Transition to
+		whenMsg prepare -> prepare
+		whenMsg add -> add
+		whenMsg clear -> clear
+	
+	State prepare{
+		println("Butler | Requirement: PREPARE started")
+		updateResource [# "preparestarted" #]
+	}
+	Transition t0 
+			whenTime 2000  -> endAction
+			whenMsg  stop -> stopped 
+	
+	State add{
+		println("Butler | Requirement: ADD started")
+		updateResource [# "addstarted" #]
+	}
+	Transition t0 
+			whenTime 2000  -> endAction
+			whenMsg  stop -> stopped 
+	
+	State clear{
+		println("Butler | Requirement: CLEAR started")
+		updateResource [# "clearstarted" #]
+	}
+	Transition t0 
+			whenTime 2000  -> endAction
+			whenMsg  stop -> stopped 
+			
+	State stopped{
+		updateResource [# "stopped" #]
+		println("Butler | Requirement: STOP action")	
+	}
+	Transition t0 whenMsg reactivate  -> reactivated
+	
+	State reactivated{
+		updateResource [# "reactivated" #]
+		println("Butler | Requirement: REACTIVATE action")
+	}Transition t0 
+			whenTime 2000  -> endAction
+			whenMsg  stop -> stopped
+	 
+ 	State endAction{
+ 		updateResource [# "ended" #]
+		println("Butler | Requirement: END action")
+
+ 	}Goto waitCmd
+	
+}
+
+//FRIDGE
+QActor fridge context ctxroom{
+	State s0 initial{
+		println("Fridge | Ready")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
+	}Goto waitCmd
+	
+	State waitCmd{	}
+	Transition t0
+		whenMsg check_food -> check
+		whenMsg fridgestate -> exposestate
+	
+	State check{
+		updateResource [# "checkfood" #]
+		println("Fridge | Requirement: CHECK food presence")
+	}
+	Goto waitCmd
+	
+	State exposestate{
+		updateResource [# "exposestate" #]
+		println("Fridge | Requirement: EXPOSE FRIDGE STATE")
+	}	
+	Goto waitCmd	
+}
+
+//MAITRE
+QActor maitre context ctxroom {
+	State s0 initial{
+		println("Maitre | Ready")
+	}
+	Goto waitCmdPrepare
+	
+	State waitCmdPrepare{}
+	Transition t0
+		whenMsg prepare -> prepare
+	
+	State waitCmd{}
+	Transition t1
+		whenMsg add -> add
+		whenMsg clear -> clear
+		whenMsg stop -> stoprobot
+		whenMsg roomstate -> consultroom
+		
+	State prepare {
+		println("Maitre | Requirement: PREPARE")
+		updateResource [# "prepare" #]
+		forward robot -m prepare : prepare(Cmd)
+	}	
+	Goto waitCmd
+		
+	State add {
+		println("Maitre | Requirement: ADD")
+		updateResource [# "add" #]
+		forward robot -m add : add(Food)
+	}	
+	Goto waitCmd
+		
+	State clear {
+		println("Maitre | Requirement: CLEAR")
+		updateResource [# "clear" #]
+		forward robot -m clear : clear(Cmd)
+	}
+	Goto waitCmdPrepare
+	
+	State stoprobot{
+		println("Maitre | Requirement: STOP")
+		updateResource [# "stoprobot" #]
+		forward robot -m stop : stop(Action)
+	}
+	Transition t1
+	whenMsg reactivate -> reactivaterobot
+	
+	State reactivaterobot{
+		println("Maitre | Requirement: REACTIVATE")
+		updateResource [# "reactivaterobot" #]
+		forward robot -m reactivate : reactivate(Action)
+	}
+	Goto waitCmd
+	
+	State consultroom{
+		println("Maitre | Requirement: CONSULT ROOM")
+		updateResource [# "consultroom" #]
+	}
+	Goto waitCmd
+}
+
+//QActor user context ctxroom{
+//	State s0 initial{
+//		
+//		delay 2000
+//		emit prepare_button : prepare_button(clicked)
+//
+//        delay 5000
+//        emit add_button : add_button(food)
+//        delay 500
+//        emit stop_button : stop_button(add)
+//        emit reactivate_button : reactivate_button(add)
+//         
+//        delay 5000
+//        emit clear_button : clear_button(clicked)
+//	}
+//}

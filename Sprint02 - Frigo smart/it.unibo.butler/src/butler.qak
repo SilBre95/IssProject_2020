@@ -1,0 +1,284 @@
+System butler
+
+Dispatch prepare : prepare(Cmd)
+Dispatch clear : clear(Cmd)
+Dispatch add : add(Foodcode, Quantity)
+
+Dispatch stop : stop(Cmd)
+Dispatch reactivate : reactivate(Cmd)
+
+Dispatch robotstate : robotstate(Cmd)
+
+Request exposefridgestate : exposefridgestate(Cmd)
+Reply fridgestate: fridgestate(List)
+
+//robot-fridge interaction
+Request check_food : check_food(Foodcode, Quantity)
+Reply food_available : food_available(Foodcode, Quantity)
+Reply food_notavailable : food_notavailable(Foodcode, Quantity)
+
+Dispatch take_food : take_food(Foodcode, Quantity)
+Dispatch take_foodlist : take_foodlist(List)
+
+//to alert maitre
+Dispatch food_notavailable : food_notavailable(Foodcode, Quantity)
+
+Dispatch test : test(0)
+
+Event prepare_button : prepare_button(Cmd)
+Event clear_button : clear_button(Cmd)
+Event add_button : add_button(Foodcode, Quantity)
+Event stop_button : stop_button(Cmd)
+Event reactivate_button : reactivate_button(Cmd)
+Event roomstate : roomstate(Cmd)
+
+Context ctxrobot ip [host="localhost" port=8038]  
+//Context ctxmaitre ip [host="localhost" port=8038]
+//Context ctxfridge ip [host="localhost" port=8038]
+
+//ROBOT
+QActor robot context ctxrobot{
+	State s0 initial{
+		println("Butler | Ready")
+	}
+	Goto waitCmd
+		
+	State waitCmd{}
+	Transition to
+		whenMsg prepare -> prepare
+		whenMsg add -> add
+		whenMsg clear -> clear
+		whenMsg robotstate -> exposestate
+	
+	State prepare{
+		onMsg (prepare: prepare(X)){
+			println("Butler | Requirement: PREPARE started")
+			updateResource [# "preparestarted" #]
+	
+		}
+	}
+	Transition t0 
+		whenTime 2000  -> endAction
+		whenMsg  stop -> stopped 
+	
+	State add{
+		onMsg (add: add(Foodcode, Quantity)){
+			println("Butler | Requirement: ADD started")
+			updateResource [# "addstarted" #]
+			println("Butler | Requirement: ADD check food")
+			request fridge -m check_food : check_food($payloadArg(0), $payloadArg(1))
+		}
+	}
+	Transition t0  
+		whenReply food_available -> reactivated
+		whenReply food_notavailable -> alertMaitre
+		
+	State alertMaitre{
+		onMsg (food_notavailable : food_notavailable(Foodcode, Quantity)){
+			println("Butler | Requirement: ALERT maitre that food isn't available")
+			forward maitre -m food_notavailable : food_not_available($payloadArg(0), $payloadArg(1))
+		}
+	}Goto waitCmd
+	
+	State clear{
+		onMsg (clear: clear(X)){
+			println("Butler | Requirement: CLEAR started")
+			updateResource [# "clearstarted" #]
+		}
+	}
+	Transition t0 
+		whenTime 2000  -> endAction
+		whenMsg  stop -> stopped 
+			
+	State stopped{
+		updateResource [# "stopped" #]
+		println("Butler | Requirement: STOP action")	
+	}
+	Transition t0 whenMsg reactivate  -> reactivated
+	
+	State reactivated{
+		updateResource [# "reactivated" #]
+		println("Butler | Requirement: CONTINUE action")
+	}Transition t0 
+		whenTime 2000  -> endAction
+		whenMsg  stop -> stopped
+	 
+ 	State endAction{
+ 		updateResource [# "ended" #]
+		println("Butler | Requirement: END action")
+
+ 	}Goto waitCmd
+ 	
+ 	State exposestate{
+ 		updateResource [# "exposestate" #]
+		println("Butler | Requirement: EXPOSE robot state")
+ 	}Goto waitCmd	
+}
+
+//FRIDGE
+QActor fridge context ctxrobot{
+	State s0 initial{
+		solve( consult("sysRules.pl")	 )
+		solve( consult("fridgestate.pl")	 )
+		println("Fridge | Ready")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
+	}Goto waitCmd
+	
+	State waitCmd{	}
+	Transition t0
+		whenRequest check_food -> check
+		whenRequest exposefridgestate -> exposestate
+		whenMsg take_food -> take
+		whenMsg take_foodlist -> take
+	
+	//check food availability
+	State check{
+		updateResource [# "checkfood" #]
+		delay 500
+		onMsg(check_food : check_food(Foodcode, Quantity)){
+			println("Fridge | checking presence of food: ${payloadArg(0)} quantity: ${payloadArg(1)}")
+			solve(check($payloadArg(0),$payloadArg(1) ))
+			
+			ifSolved {replyTo check_food with food_available : food_available($payloadArg(0),$payloadArg(1))}
+			else {replyTo check_food with food_notavailable : food_notavailable($payloadArg(0),$payloadArg(1))}
+		}
+	}
+	Goto waitCmd
+	
+	//take food 
+	State take{
+		updateResource [# "takefood" #]
+		onMsg(take_food: take_food(Foodcode, Quantity)){
+			solve(action(take, fridge, food, $payloadArg(0), $payloadArg(1)))
+			ifSolved {
+				println("Fridge | ${payloadArg(1)} ${payloadArg(0)} taken")
+			}			
+		}
+		
+		onMsg(take_foodlist: take_foodlist(L)){
+			[# var Food: String = payloadArg(0);
+				 var Foodstring = Food.replace(",(","(") #] //to remove the extra comma from prolog toString
+			//println(Foodstring)
+			solve(text_term($Foodstring,E))
+			ifSolved{
+				[#var Sol = getCurSol("E");
+						var Solstring = Sol.toString()#]
+				solve(action(take, fridge, food, $Sol))
+				ifSolved {
+					println("Fridge | $Food taken")					
+				}
+			}			
+		}
+	}Goto waitCmd
+	
+	
+	//expose fridge state to maitre
+	State exposestate{
+		updateResource [# "exposestate" #]
+		solve(state(fridge, List))
+		ifSolved{
+			println("Fridge | state: ${getCurSol(\"List\")}")
+			replyTo exposefridgestate with fridgestate : fridgestate($getCurSol("List")) 
+		}
+	}	
+	Goto waitCmd	
+}
+
+//MAITRE
+QActor maitre context ctxrobot {
+	State s0 initial{
+		println("Maitre | Ready")
+	}
+	Goto waitCmdPrepare
+	
+	State waitCmdPrepare{}
+	Transition t0
+		whenEvent prepare_button -> prepare
+	
+	State waitCmd{}
+	Transition t1
+		whenEvent add_button -> add
+		whenEvent clear_button -> clear
+		whenEvent stop_button -> stoprobot
+		whenEvent roomstate -> consultroom
+		whenMsg food_notavailable -> handlerobotmsg
+		
+	State prepare {
+		onMsg(prepare_button: prepare_button(X)){
+			println("Maitre | Requirement: PREPARE")
+			updateResource [# "prepare" #]
+			forward robot -m prepare : prepare(Cmd)
+		}
+	}	
+	Goto waitCmd
+		
+	State add {
+		onMsg(add_button: add_button(Foodcode, Quantity)){
+			println("Maitre | Requirement: ADD")
+			updateResource [# "add" #]
+			forward robot -m add : add($payloadArg(0), $payloadArg(1))
+		}
+	}	
+	Goto waitCmd
+		
+	State clear {
+		onMsg(clear_button: clear_button(X)){
+			println("Maitre | Requirement: CLEAR")
+			updateResource [# "clear" #]
+			forward robot -m clear : clear(Cmd)
+		}
+	}
+	Goto waitCmdPrepare
+	
+	State stoprobot{
+		println("Maitre | Requirement: STOP")
+		updateResource [# "stoprobot" #]
+		forward robot -m stop : stop(Action)
+	}
+	Transition t1
+	whenEvent reactivate_button -> reactivaterobot
+	
+	State reactivaterobot{
+		println("Maitre | Requirement: REACTIVATE")
+		updateResource [# "reactivaterobot" #]
+		forward robot -m reactivate : reactivate(Action)
+	}
+	Goto waitCmd
+	
+	State consultroom{
+		println("Maitre | Requirement: CONSULT ROOM")
+		updateResource [# "consultroom" #]
+	}
+	Goto waitCmd
+	
+	State handlerobotmsg{
+		onMsg (food_notavailable: food_not_available(Foodcode, Quantity)){
+			println("Maitre | knows ${payloadArg(0)} isn't available")
+		}
+	}
+	Goto waitCmd
+}
+
+QActor user context ctxrobot{
+	State s0 initial{
+	} Transition t0 
+		whenTime 3000 -> emitCmd
+		whenMsg  test -> end
+	
+	State emitCmd{	
+		delay 2000
+		emit prepare_button : prepare_button(clicked)
+
+        delay 3000
+        emit add_button : add_button(pizza,2)
+        
+        delay 3000
+        emit add_button : add_button(pasta,1)
+         
+        delay 3000
+        emit clear_button : clear_button(clicked)
+	}
+	
+	State end {
+		terminate 0
+	}
+}

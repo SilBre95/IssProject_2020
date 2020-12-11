@@ -1,0 +1,550 @@
+System robot
+
+//robot commands
+Dispatch prepare : prepare(Cmd)
+Dispatch clear : clear(Cmd)
+Dispatch add : add(Foodcode, Quantity)
+Dispatch stop : stop(Cmd)
+Dispatch reactivate : reactivate(Cmd)
+Dispatch expose : expose(Cmd)
+
+//robot movements
+Request goto : goto(Destination)
+Reply arrivedat : arrivedat(Destination)
+
+//robot-fridge interaction
+Request check_food : check_food(Foodcode, Quantity)
+Reply food_available : food_available(Foodcode, Quantity)
+Reply food_notavailable : food_notavailable(Foodcode, Quantity)
+Dispatch take_food : take_food(Foodcode, Quantity)
+Dispatch take_foodlist : take_foodlist(List)
+
+//roomstate updates
+Request exposeroomstate : exposeroomstate(Cmd)
+Reply roomstate : roomstate(List)
+Dispatch updateState : updateState(Action)
+
+//update events
+Event roomstate : roomstate(X)
+Event robotposition : robotposition(X)
+Event robotaction : robotaction(X)
+Event robotdest : robotdest(Dest, X, Y)
+
+//to alert maitre
+Event food_notavailable : food_notavailable(Foodcode, Quantity)
+Event endSession : endSession(Cmd)
+
+//basicrobot
+Dispatch cmd       	: cmd(MOVE) 
+Request step       : step( TIME )	
+Reply   stepdone   : stepdone(V)  
+Reply   stepfail   : stepfail(DURATION, CAUSE)
+
+Context ctxrobot ip [host="localhost" port=8040] 
+Context ctxfridge ip [host="127.0.0.1" port=8038]
+Context ctxbasicrobot ip [host="::1" port=8020]
+
+ExternalQActor fridge context ctxfridge
+ExternalQActor basicrobot context ctxbasicrobot
+
+//ROBOT
+QActor robot context ctxrobot{
+	State s0 initial{
+		println("Butler | Ready")
+	}
+	Goto waitCmd
+		
+	State waitCmd{}
+	Transition to
+		whenMsg prepare -> handleprepare
+		whenMsg add -> handleadd
+		whenMsg clear -> handleclear
+		whenMsg stop -> handlestop
+		whenMsg expose -> handleexpose
+		
+	State handleexpose{
+		onMsg (expose: expose(X)){
+			println("Butler | EXPOSE started")
+			updateResource [# "handlingexpose" #]
+			forward roomstate -m expose : expose(x) 
+		}
+	}
+	Goto waitCmd	
+	
+	State handleprepare{
+		onMsg (prepare: prepare(X)){
+			println("Butler | PREPARE started")
+			updateResource [# "handlingprepare" #]
+			forward robotexecutor -m prepare : prepare($payloadArg(0))
+		}
+	}
+	Goto waitCmd
+	
+	State handleadd{
+		onMsg (add: add(Foodcode, Quantity)){
+			println("Butler | ADD started")
+			updateResource [# "handlingadd" #]
+			forward robotexecutor -m add : add($payloadArg(0), $payloadArg(1))
+		}
+	}
+	Goto waitCmd
+	
+	State handleclear{
+		onMsg (clear: clear(X)){
+			println("Butler | CLEAR started")
+			updateResource [# "handlingclear" #]
+			forward robotexecutor -m clear : clear($payloadArg(0))
+		}
+	}
+	Goto waitCmd
+			
+	State handlestop{
+		onMsg(stop:stop(X)){
+			updateResource [# "stopped" #]
+			println("Butler |  STOP action")
+			forward robotmover -m stop : stop($payloadArg(0))
+		}
+	}
+	Transition t0 whenMsg reactivate -> handlereactivate
+	
+	State handlereactivate{
+		onMsg(reactivate:reactivate(X)){
+			updateResource [# "reactivated" #]
+			println("Butler |  CONTINUE action")
+			forward robotmover -m reactivate : reactivate($payloadArg(0))
+		}
+	}Goto waitCmd
+	
+}
+
+
+QActor robotexecutor context ctxrobot{
+	State s0 initial{
+		solve( consult("preparerequirements.pl") )
+	}	Goto waitCmd
+	
+	State waitCmd{
+		updateResource [# "athome" #]
+	}
+	Transition t0
+		whenMsg prepare->handleprepare
+		whenMsg add -> handleadd
+		whenMsg clear -> handleclear
+	
+	State handleprepare{
+		onMsg (prepare: prepare(X)){
+			updateResource [# "startprepare" #]
+			println("Robot executor | Prepare: start")
+			
+			[# val StateP = "PREPARE" #]
+			 
+			emit robotaction : robotaction($StateP)
+			
+			request robotmover -m goto : goto(pantry)
+		}
+	}Transition t1
+		whenReply arrivedat-> atpantry
+		
+	State atpantry{
+		onMsg(arrivedat:arrivedat(pantry)){	
+			updateResource [# "atpantry" #]
+			delay 2500
+			forward roomstate -m updateState : updateState(preparedishes) 
+			println("Robot executor | Prepare: dishes taken")
+			request robotmover -m goto : goto(table)
+		}
+	}Transition t2
+		whenReply arrivedat-> attable_dishes
+		
+	State attable_dishes{
+		onMsg(arrivedat:arrivedat(table)){
+			updateResource [# "attable_dishes" #]
+			delay 2500
+			forward roomstate -m updateState : updateState(action(put, table, dishes))
+			println( "Robot executor | Prepare: dishes on table " )
+			request robotmover -m goto:goto(fridge)
+		}
+	}Transition t3
+		whenReply arrivedat -> atfridge 
+	
+	State atfridge{
+		onMsg(arrivedat:arrivedat(fridge)){	
+			updateResource [# "atfridge" #]
+			solve(food(F))
+			delay 2500
+			forward fridge -m take_foodlist : take_foodlist($getCurSol("F"))
+			
+			forward roomstate -m updateState : updateState(preparefood)
+			println("Robot executor | Prepare: food taken")
+			request robotmover -m goto : goto(table)		
+		}
+		
+	}Transition t5
+		whenReply arrivedat -> attable_food
+		
+	State attable_food{
+		onMsg(arrivedat:arrivedat(table)){	
+			updateResource [# "attable_food" #]
+			delay 2500
+			forward roomstate -m updateState : updateState(action(put, table, food))
+			println("Robot executor | Prepare/Add: food on table")		
+			request robotmover -m goto : goto(home)
+		}	
+	}Transition t6
+		whenReply arrivedat -> endTask
+	
+	State endTask {
+		updateResource [# "endtask" #]
+		println("Robot executor | Action: end")	
+		 
+		emit robotaction : robotaction(Waiting)
+	}Goto waitCmd 
+	
+	State handleadd{
+		onMsg (add: add(Food, Quantity)){
+			updateResource [# "startadd" #]
+			println("Robot executor | Add: start")
+			
+			 
+			emit robotaction : robotaction(ADD)
+			
+			request fridge -m check_food : check_food( $payloadArg(0), $payloadArg(1))
+		}
+
+	}Transition t7 
+		whenReply food_available -> tofridge
+		whenReply food_notavailable -> alertMaitre
+	
+	State tofridge{
+		onMsg (food_available : food_available(Foodcode, Quantity)){
+			updateResource [# "foodavailable" #]
+			println("Robot executor | Add: ${payloadArg(0)} ${payloadArg(1)} available")
+			
+			//so the robot is able to remember these arguments in the next state
+			solve(assert(remember($payloadArg(0), $payloadArg(1))))	
+			request robotmover -m goto:goto(fridge)
+				
+		}
+	}Transition t8
+		whenReply arrivedat -> takefood
+		
+	State takefood{
+		onMsg(arrivedat : arrivedat(fridge)){
+			updateResource [# "atfridge" #]
+			solve(retract(remember(F, Q)))
+			ifSolved {  
+				[#
+					var Foodcode = getCurSol("F").toString() 
+					var Quantity = getCurSol("Q").toString() 
+		        #]
+		        delay 2500
+		        forward fridge -m take_food : take_food($Foodcode, $Quantity)
+				forward roomstate -m updateState : updateState(action(take, fridge, food, $Foodcode, $Quantity))
+			}	
+			println("Robot executor | Add: food taken")
+			request robotmover -m goto : goto(table)
+		}
+		
+	}Transition t10
+		whenReply arrivedat -> attable_food
+		
+	State alertMaitre{
+		onMsg (food_notavailable : food_notavailable(Foodcode, Quantity)){
+			updateResource [# "foodnotavailable" #]
+			println("Robot executor | Add: ${payloadArg(0)} ${payloadArg(1)} not available")
+			 
+			emit food_notavailable : food_notavailable($payloadArg(0), $payloadArg(1)) 
+		}
+	}Goto endTask
+	
+	State handleclear{
+		onMsg (clear: clear(X)){
+			updateResource [# "startclear" #]
+			println("Robot executor | Clear: start")
+
+			emit robotaction : robotaction(CLEAR)
+			
+			request robotmover -m goto : goto(table)
+		}
+	}Transition t11
+		whenReply arrivedat -> cleartable_food
+	
+	State cleartable_food{
+		onMsg(arrivedat:arrivedat(table))	{
+			updateResource [# "attable" #]
+			delay 2500
+			forward roomstate -m updateState : updateState(action(take, table, food))
+			println("Robot executor | Clear: food taken from table")
+			request robotmover -m goto : goto(fridge)
+			
+		}
+	}Transition t12
+		whenReply arrivedat -> leftoverstofridge
+	
+	State leftoverstofridge{
+		onMsg(arrivedat:arrivedat(fridge)){	
+			updateResource [# "atfridge" #]
+			delay 2500
+			forward roomstate -m updateState : updateState(action(put, fridge, food))
+			println("Robot executor | Clear: leftovers in the fridge")
+			request robotmover -m goto : goto(table)
+		}
+	}Transition t13
+		whenReply arrivedat -> cleartable_dishes
+		
+	State cleartable_dishes{
+		onMsg(arrivedat:arrivedat(table))	{
+			updateResource [# "attable" #]
+			delay 2500
+			forward roomstate -m updateState : updateState(action(take, table, dishes))
+			println("Robot executor | Clear: dishes taken from table")
+			request robotmover -m goto : goto(dishwasher)
+		}
+	}Transition t14
+		whenReply arrivedat -> dishestodishwasher
+	
+	State dishestodishwasher{
+		onMsg(arrivedat:arrivedat(dishwasher)){
+			updateResource [# "atdishwasher" #]
+			delay 2500
+			forward roomstate -m updateState : updateState(action(put, dishwasher, dishes))
+			println("Robot executor | Clear: dishes in the dishwasher")
+			request robotmover -m goto : goto(home)			
+		}	
+	}Transition t15
+		whenReply arrivedat -> endSession
+
+		
+	State endSession {
+		updateResource [# "endtask" #]
+		println("Robot executor | Session: end")	
+		 
+		emit robotaction : robotaction(EndSession)
+		 
+		emit endSession : endSession(X)
+	}Goto waitCmd 
+	
+}
+
+QActor robotmover context ctxrobot{
+	[#
+		val mapname = "roommap"
+		
+		//goal name and coordinates
+		var Dest = ""
+		var X = ""
+		var Y = ""
+		var Direction = ""
+		
+		var CurrentPlannedMove = ""
+		var BackTime = 320L
+		
+		var StepTime   = ""
+		var PauseTime  = 500L
+		
+		var DestFound = true
+	#]
+	
+	State s0 initial{
+		solve( consult("sysRules.pl")	 )
+		solve( consult("roomcoordinates.pl"))
+		solve( consult("stepconfig.pl"))
+		solve(step(Time, Pause))
+		[#
+			StepTime = getCurSol("Time").toString()
+			PauseTime = getCurSol("Pause").toString().toLong()
+		#]
+		run itunibo.planner.plannerUtil.initAI()
+		run itunibo.planner.plannerUtil.loadRoomMap( mapname )
+		run itunibo.planner.plannerUtil.showMap() 
+	}Goto waitCmd
+	
+	State waitCmd{ 
+		updateResource [# "notmoving" #]
+	}
+	Transition t0
+		whenRequest goto -> plan	
+		
+	State plan {
+		onMsg(goto: goto(Destination)){
+			updateResource [# "planning" #]
+			println("Robot mover	| going to ${payloadArg(0)}")
+			[# Dest = payloadArg(0) #]
+			solve(position($Dest, X, Y, D))
+			ifSolved{
+				[#
+					X = getCurSol("X").toString()
+					Y = getCurSol("Y").toString()
+					Direction = getCurSol("D").toString()
+					//val DestString =":" + Dest +" (" + X + "," +Y+")"
+				#]
+				run itunibo.planner.plannerUtil.planForGoal(X,Y)
+				delay 1000
+				emit robotdest : robotdest($Dest, $X, $Y)
+			}
+			else{
+				println("Robot mover	| Destinazione non trovata")
+				[#DestFound = false#]
+			}
+		}
+	}Goto execplan if [#DestFound#] else waitCmd
+	
+	State execplan{
+		[#  CurrentPlannedMove = itunibo.planner.plannerUtil.getNextPlannedMove() #]
+	} Goto execmove if [# CurrentPlannedMove.length > 0 # ] else changedirection
+		
+	State execmove{}
+		Goto forwardmove if [# CurrentPlannedMove == "w" #] else othermove
+	
+	State forwardmove{
+		updateResource [# "moving" #]
+		delayVar PauseTime
+		request basicrobot -m step : step ($StepTime)
+	} Transition t3
+		whenReply stepdone     -> handleStepOk   
+		whenReply stepfail   -> hadleStepFail 
+		whenMsg stop -> handleStopAppl
+		
+	State handleStopAppl{
+		   	updateResource [# "stopped" #]
+    	println("Robot mover | STOPPED: Waiting for a reactivate")
+    } 
+    Transition t0  whenMsg reactivate -> handleReactivateAppl
+    
+    State handleReactivateAppl{
+    	updateResource [# "resumed" #]
+    	println("Robot mover | RESUMED")
+    } 
+	Transition t0   whenReply stepdone     -> handleStepOk   
+					whenReply stepfail   -> hadleStepFail 
+			
+	State othermove {
+		updateResource [# "moving" #]
+		delayVar PauseTime
+		forward basicrobot -m cmd:cmd($CurrentPlannedMove)
+		run itunibo.planner.plannerUtil.updateMap(CurrentPlannedMove,"")
+	}Goto execplan
+	
+	State handleStepOk{
+		updateResource [# "stepdone" #]
+		run itunibo.planner.plannerUtil.updateMap(CurrentPlannedMove,"")
+		[# val Pos = itunibo.utils.formatPosition() #]
+		 
+		emit robotposition : robotposition($Pos)
+	}Goto execplan
+	
+	State hadleStepFail{ 
+		onMsg(stepfail : stepfail(Dur, Cause)){
+			[# 
+				BackTime = payloadArg(0).toLong()
+			#]
+			updateResource [# "stepfail" #]
+			if [#itunibo.planner.plannerUtil.getPosX()!=X.toInt() || itunibo.planner.plannerUtil.getPosY()!=Y.toInt()#]{
+				forward basicrobot -m cmd : cmd( s )
+				delayVar BackTime
+				forward basicrobot -m cmd : cmd( h )
+				delay 1500
+			}
+		}
+	}Goto execplan if[# itunibo.planner.plannerUtil.getPosX()==X.toInt() && itunibo.planner.plannerUtil.getPosY()==Y.toInt() #] else execmove
+
+	State changedirection{
+		updateResource [# "changedirection" #]
+		[# var CurrentDir = itunibo.planner.plannerUtil.getDirection() #]
+		if [# CurrentDir != Direction #]{
+			[# var RotationDir = itunibo.direction.directionUtil.changeDirection(CurrentDir, Direction) #]
+			if [# RotationDir == "180"#]{
+				
+				delayVar PauseTime
+				forward basicrobot -m cmd : cmd(r)
+				run itunibo.planner.plannerUtil.updateMap("r","")
+				
+				delayVar PauseTime
+				forward basicrobot -m cmd : cmd(r)
+				run itunibo.planner.plannerUtil.updateMap("r","")
+			}
+			else {
+				delayVar PauseTime
+				forward basicrobot -m cmd : cmd($RotationDir)
+				run itunibo.planner.plannerUtil.updateMap(RotationDir,"")
+			}
+			[# val Pos = itunibo.utils.formatPosition() #]
+			emit robotposition : robotposition($Pos)		
+		}
+	}Goto goalreached
+	
+	State goalreached{
+		updateResource [# "goalreached" #]
+		run itunibo.planner.plannerUtil.showMap()
+		run itunibo.planner.plannerUtil.showCurrentRobotState()
+		
+		replyTo goto with arrivedat: arrivedat($Dest)
+		
+	}Goto waitCmd
+}
+
+QActor roomstate context ctxrobot{
+	State s0 initial{
+		solve( consult("sysRules.pl")	 )
+		solve( consult("roomstate.pl")	 )
+		solve( consult("preparerequirements.pl") )
+		
+	}Goto waitStateChange
+	
+	State waitStateChange{	}
+		Transition t1
+		whenRequest exposeroomstate -> exposeroomstate
+		whenMsg expose -> expose
+		whenMsg updateState -> update
+		
+	State expose{
+		updateResource [# "exposeroomstate" #]
+		solve(roomstate(L))
+		[# val List = getCurSol("L").toString() #]
+		emit roomstate : roomstate($List)
+	}Goto waitStateChange
+	
+	State exposeroomstate{
+		updateResource [# "exposeroomstate" #]
+		onMsg(exposeroomstate : exposeroomstate(Cmd)){
+			solve(roomstate(St))
+			ifSolved{
+				replyTo exposeroomstate with roomstate : roomstate($getCurSol("St"))
+			}
+		}
+	}Goto waitStateChange
+	
+	State update{
+		updateResource [# "updateroomstate" #]
+		onMsg(updateState : updateState(preparedishes)){
+			solve(dishes(D))
+			[#
+				var Sol = getCurSol("D")
+			#]
+			solve(action(take,pantry,dishes,$Sol))	
+		}
+		onMsg(updateState : updateState(preparefood)){
+			solve(food(F))
+			[#
+				var Sol = getCurSol("F")
+			#]
+			solve(action(take,fridge,food,$Sol))			
+		}
+
+		onMsg(updateState : updateState(action(A,B,C))){
+			solve($payloadArg(0))
+		
+		}
+		onMsg(updateState : updateState(action(A,B,C,D))){
+			solve($payloadArg(0))
+			
+		}
+		onMsg(updateState : updateState(action(A,B,C,D,E))){
+			solve($payloadArg(0))
+		}
+		
+		solve(roomstate(L))
+		[# val List = getCurSol("L").toString() #]
+		emit roomstate : roomstate($List)
+	}Goto waitStateChange
+}

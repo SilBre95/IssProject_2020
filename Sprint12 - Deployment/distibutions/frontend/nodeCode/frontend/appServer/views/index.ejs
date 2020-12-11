@@ -1,0 +1,125 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Maitre Console</title>
+		
+		<link rel="stylesheet" type="text/css" href="stylesheets/style.css">
+		
+		<script type="text/javascript" src="/socket.io/socket.io.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+		<script type="text/javascript" src="javascripts/core.js"></script>
+		
+	</head>
+	
+	<body style="background-image: url(../../images/test.jpg); background-size: cover;">
+	
+<div>  
+<h2 align="center" style="font-family:Comic Sans MS"> <span style="background-color: #FBF09C;"> Ma&icirctre Console </h2>   
+
+<table align="center" style="background-color: #FBF09C;">
+					<tr>
+						<td colspan="3" id="robotStateArea">
+							<!-- Parte delle stampe -->
+							<div id="stateArea">
+								<div>
+									 <b>ROBOT POSITION</b>: <span id="robotPosition"></span>
+								  </div>
+								<div>
+									  <b>CURRENT TASK</b>: <span id="currentTask"></span>
+								</div>
+								<div>
+									  <b>CURRENT GOAL</b>: <span id="currentGoal"></span>
+								</div>
+							</div>
+						</td>
+					</tr>
+</table>
+
+				<table>
+					<tr>
+						<td class="td" rowspan="2">
+							<span style="background-color:#ff8080;">TABLE</span>
+							<textarea id="textareaOutputTable" readonly></textarea>
+						</td>
+						<td class="td" rowspan="2">
+							<span style="background-color:#ffbf80;">FRIDGE</span>
+							<textarea id="textareaOutputFridge" readonly></textarea>
+						</td>
+						<td class="td" rowspan="2">
+							<span style="background-color:#9fff80;">ROBOT</span>
+							<textarea id="textareaOutputRobot" readonly></textarea>
+						</td>
+						<td class="td">
+							<span style="background-color:#80bfff;">PANTRY</span>
+							<textarea id="textareaOutputPantry" readonly></textarea>
+						</td>
+						<td class="td">
+							<span style="background-color:#cc99ff;">DISHWASHER</span>
+							<textarea id="textareaOutputDishWasher" readonly></textarea>
+						</td>
+					</tr>
+				</table>
+
+
+	<table align="center" style="background-color: #FBF09C;">
+		<tbody>
+<tr>
+<td  style="font-size:30px;width: 300px;"> <label id="foodcodeString" align="center" style="visibility:hidden;">Select food code...</label><br/>
+</td>
+
+<td colspan="2" style="width: 300px;">
+<form action="/addfood" method="post" id="foodcodeform">								    
+								<select style="font-size:20px;width:150px;visibility:hidden;background-color:#a1e6f7;" id="foodcode-dropdown" name="foodcode"></select>					
+								<button disabled class="btn btn-default buttons" id="addfoodbutton" type="button" align="center" style="font-size:30px ;visibility:hidden; width:200px;background-color:#a1e6f7;border-radius:8px;" onclick="onClickAddFood(document.getElementById('foodcode-dropdown').options[document.getElementById('foodcode-dropdown').selectedIndex].value)">ADD FOOD</button>
+							 	<button disabled class="btn btn-default buttons" type="button" align="center" style="font-size:30px ;visibility:hidden; width:150px;" ></button>
+							 	<button disabled id="requestButton" class="btn btn-default buttons" formaction="/request"  type="submit" style="font-size:30px;visibility:hidden; width:200px;margin-top:25px;background-color:#a1e6f7;border-radius:8px;" onclick="onClickRequest(document.getElementById('foodcode-dropdown').options[document.getElementById('foodcode-dropdown').selectedIndex].value)">REQUEST</button>
+							</form>
+								</td>								
+</tr>
+
+<tr>
+<td style="width: 300px;">
+<form action="/prepare" method="post">
+							  	<button class="btn btn-default buttons" type="submit" style="font-size:30px; width:200px;border-radius:8px;"  onclick="onClickPrepare()" id="prepareButton">PREPARE</button>
+							</form>
+					
+</td>
+<td rowspan="2">
+<center>
+	 <img src="../../images/giphy.gif" alt="descrizione immagine" align="middle" vertical-align="middle" style="width:150px; height:150px;">
+	 </img>
+	 </center>
+</td>
+
+<td style="width: 300px;">
+				<form action="/start" method="post" id="startform">
+							    <font size="3" color="red">
+							  	<button id="startButton" type="submit" style="font-size:30px; ; width:200px;visibility:hidden;background-color:#47d147;border-radius:8px;" disabled onclick="onClickStart()">START</button>
+							  	</font>
+							</form>
+</td>
+</tr>
+
+<tr>
+
+	<td style="width: 300px;">
+	<form action="/clear" method="post" id="clearform">
+							  	<button disabled class="btn btn-default buttons" type="submit" style="font-size:30px; ; width:200px;visibility:hidden;border-radius:8px;"  onclick="onClickClear()" id="clearButton">CLEAR</button>
+							</form>
+	</td>
+	
+<td style="width: 300px;">
+						<form action="/stop" method="post" id="stopform">
+							  	<button id="stopButton"  type="submit" style="font-size:30px;visibility:hidden; width:200px;background-color:#ff4d4d;border-radius:8px;" onclick="onClickStop()">STOP</button>
+							</form>
+
+</td>
+</tbody>
+</table>
+							 
+</div>
+
+
+	</body>
+ </html>

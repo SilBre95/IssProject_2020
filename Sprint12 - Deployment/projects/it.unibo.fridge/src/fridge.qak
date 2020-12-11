@@ -1,0 +1,94 @@
+System fridge
+
+Request check_food : check_food(Foodcode, Quantity)
+Reply food_available : food_available(Foodcode, Quantity)
+Reply food_notavailable : food_notavailable(Foodcode, Quantity)
+
+Dispatch take_food : take_food(Foodcode, Quantity)
+Dispatch take_foodlist : take_foodlist(List)
+Dispatch exposefridge : exposefridgestate(Cmd)
+
+Request exposefridgestate : exposefridgestate(Cmd)
+Reply fridgestateReplay: fridgestateReplay(List)
+
+Event fridgestate : fridgestate(X)
+
+
+Context ctxfridge ip [host="localhost" port=8038]
+
+QActor fridge context ctxfridge{
+	State s0 initial{
+		solve( consult("sysRules.pl")	 )
+		solve( consult("fridgestate.pl")	 )
+		println("Fridge | Ready")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
+	}Goto waitCmd
+	
+	State waitCmd{
+		updateResource [# "waitcmd" #]
+	}
+	Transition t0
+		whenRequest check_food -> check
+		whenRequest exposefridgestate -> exposestate
+		whenMsg take_food -> take
+		whenMsg take_foodlist -> take
+	
+	//check food availability
+	State check{
+		updateResource [# "checkfood" #]
+		delay 500
+		onMsg(check_food : check_food(Foodcode, Quantity)){
+			println("Fridge | checking presence of food: ${payloadArg(0)} quantity: ${payloadArg(1)}")
+			solve(check($payloadArg(0),$payloadArg(1) ))
+			
+			ifSolved {replyTo check_food with food_available : food_available($payloadArg(0),$payloadArg(1))}
+			else {replyTo check_food with food_notavailable : food_notavailable($payloadArg(0),$payloadArg(1))}
+		}
+	}
+	Goto waitCmd
+	
+	//take food 
+	State take{
+		updateResource [# "takefood" #]
+		onMsg(take_food: take_food(Foodcode, Quantity)){
+			solve(action(take, fridge, food, $payloadArg(0), $payloadArg(1)))
+			ifSolved {
+				println("Fridge | ${payloadArg(1)} ${payloadArg(0)} taken")
+			}			
+		}
+		
+		onMsg(take_foodlist: take_foodlist(L)){
+			[# var Food: String = payloadArg(0);
+				 var Foodstring = Food.replace(",(","(") #] //to remove the extra comma from prolog toString
+			//println(Foodstring)
+			solve(text_term($Foodstring,E))
+			ifSolved{
+				[#var Sol = getCurSol("E");
+						var Solstring = Sol.toString()#]
+				solve(action(take, fridge, food, $Sol))
+				ifSolved {
+					println("Fridge | $Food taken")					
+				}
+			}			
+		}
+		solve(state(fridge, List))
+		
+		[# val L = getCurSol("List").toString() #]
+		emit fridgestate : fridgestate($L) 
+		
+	}Goto waitCmd
+	
+	
+	//expose fridge state to maitre
+	State exposestate{
+		updateResource [# "exposestate" #]
+		solve(state(fridge, List))
+		ifSolved{
+			println("Fridge | state: ${getCurSol(\"List\")}")
+			[#val L = getCurSol("List").toString() #]
+			replyTo exposefridgestate with fridgestateReplay : fridgestateReplay($L)
+		}
+	}	
+	Goto waitCmd	
+	
+	
+}
