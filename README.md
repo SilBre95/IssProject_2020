@@ -29,3 +29,6 @@ Il progetto è per la maggior parte realizzato utilizzando il linguaggio QActor,
 Viene fornita una demo (https://github.com/SilBre95/IssProject_2020/blob/main/DEMO.mp4) che riassume le funzionalità principali
 
 ![alt text](https://github.com/SilBre95/IssProject_2020/blob/main/Robot_Image.png)
+
+## Tags
+kotlin, dsl, raspberry, node, express, coap, mqtt, tcp, iot, planner, robot, prolog, ia, qak, actor, smart device
