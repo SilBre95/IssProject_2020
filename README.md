@@ -24,3 +24,6 @@ Il progetto è per la maggior parte realizzato utilizzando il linguaggio QActor,
 * fare riferimento al progetto https://github.com/anatali/iss2020LabBo/tree/master/it.unibo.raspIntro2020 per la configurazione del raspberry
 * eseguire il basicrobot su raspberry
 * eseguire il file `startApplNano.bat` che esegue tutti gli altri componenti e apre una finestra del browser con il frontend, *oppure* fare riferimento ai `README` contenuti in ogni distribuzione per eseguire le applicazioni singolarmente o modificare alcune configurazioni
+
+## Demo 
+Viene fornita una demo (DEMO.mp4) che riassume le funzionalità principali
