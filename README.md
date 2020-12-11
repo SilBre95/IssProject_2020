@@ -28,4 +28,4 @@ Il progetto è per la maggior parte realizzato utilizzando il linguaggio QActor,
 ## Demo 
 Viene fornita una demo (https://github.com/SilBre95/IssProject_2020/blob/main/DEMO.mp4) che riassume le funzionalità principali
 
-
+![alt text](https://github.com/SilBre95/IssProject_2020/blob/main/Robot_Image.png)
