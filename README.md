@@ -26,4 +26,6 @@ Il progetto è per la maggior parte realizzato utilizzando il linguaggio QActor,
 * eseguire il file `startApplNano.bat` che esegue tutti gli altri componenti e apre una finestra del browser con il frontend, *oppure* fare riferimento ai `README` contenuti in ogni distribuzione per eseguire le applicazioni singolarmente o modificare alcune configurazioni
 
 ## Demo 
-Viene fornita una demo (DEMO.mp4) che riassume le funzionalità principali
+Viene fornita una demo (https://github.com/SilBre95/IssProject_2020/blob/main/DEMO.mp4) che riassume le funzionalità principali
+
+
